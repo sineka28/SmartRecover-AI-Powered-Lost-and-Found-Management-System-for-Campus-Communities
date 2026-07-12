@@ -1,0 +1,21 @@
+.App {
+  text-align: center;
+  margin-top: 70px;
+  font-family: Arial, sans-serif;
+}
+
+h1 {
+  color: #0b5ed7;
+}
+
+h2 {
+  color: gray;
+}
+
+button {
+  margin: 10px;
+  padding: 12px 20px;
+  font-size: 16px;
+  border-radius: 8px;
+  cursor: pointer;
+}
