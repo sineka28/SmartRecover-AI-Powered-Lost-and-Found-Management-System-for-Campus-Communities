@@ -1,0 +1,4 @@
+- [DataSource URL parsing](datasource-url.md) — Replit PostgreSQL URL needs custom parsing; jdbc: prefix alone is not enough
+- [Java version GraalVM](java-version.md) — GraalVM CE 22.3.1 = Java 19; pom.xml must use java.version=17
+- [Spring Boot datasource autoconfigure](datasource-autoconfig.md) — Must exclude DataSourceAutoConfiguration when using custom DataSource bean
+- [Component scan](component-scan.md) — Main app in com.smartrecover.smartrecover; configs in com.smartrecover.config — needs explicit @ComponentScan

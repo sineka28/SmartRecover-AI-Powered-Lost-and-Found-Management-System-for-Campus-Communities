@@ -3,6 +3,7 @@ package com.smartrecover.smartrecover.security;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
@@ -12,51 +13,48 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
-    // Fixed Secret Key (must be kept safe in production)
-    private static final String SECRET =
-            "SmartRecoverAISecretKeyForJWTAuthentication2026Secure";
+    @Value("${jwt.secret}")
+    private String secret;
 
-    private final SecretKey SECRET_KEY =
-            Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
+    @Value("${jwt.expiration}")
+    private long expirationTime;
 
+    private SecretKey getSigningKey() {
+        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
+        return Keys.hmacShaKeyFor(keyBytes);
+    }
 
-    // Token validity: 24 hours
-    private static final long EXPIRATION_TIME =
-            1000 * 60 * 60 * 24;
-
-
-    // Generate JWT Token
     public String generateToken(String username) {
-
         return Jwts.builder()
                 .subject(username)
                 .issuedAt(new Date())
-                .expiration(
-                        new Date(System.currentTimeMillis() + EXPIRATION_TIME)
-                )
-                .signWith(SECRET_KEY)
+                .expiration(new Date(System.currentTimeMillis() + expirationTime))
+                .signWith(getSigningKey())
                 .compact();
     }
 
-
-    // Extract Username from Token
     public String extractUsername(String token) {
+        return parseClaims(token).getSubject();
+    }
 
-        Claims claims = Jwts.parser()
-                .verifyWith(SECRET_KEY)
+    public boolean validateToken(String token, String username) {
+        try {
+            String extracted = extractUsername(token);
+            return extracted.equals(username) && !isTokenExpired(token);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean isTokenExpired(String token) {
+        return parseClaims(token).getExpiration().before(new Date());
+    }
+
+    private Claims parseClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(getSigningKey())
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
-
-        return claims.getSubject();
-    }
-
-
-    // Validate Token
-    public boolean validateToken(String token, String username) {
-
-        String extractedUsername = extractUsername(token);
-
-        return extractedUsername.equals(username);
     }
 }

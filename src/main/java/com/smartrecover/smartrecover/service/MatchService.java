@@ -3,9 +3,11 @@ package com.smartrecover.smartrecover.service;
 import com.smartrecover.smartrecover.entity.FoundItem;
 import com.smartrecover.smartrecover.entity.LostItem;
 import com.smartrecover.smartrecover.entity.Match;
+import com.smartrecover.smartrecover.entity.Notification;
 import com.smartrecover.smartrecover.repository.FoundItemRepository;
 import com.smartrecover.smartrecover.repository.LostItemRepository;
 import com.smartrecover.smartrecover.repository.MatchRepository;
+import com.smartrecover.smartrecover.repository.NotificationRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -14,209 +16,137 @@ import java.util.List;
 @Service
 public class MatchService {
 
-    @Autowired
-    private MatchRepository matchRepository;
+    @Autowired private MatchRepository matchRepository;
+    @Autowired private LostItemRepository lostItemRepository;
+    @Autowired private FoundItemRepository foundItemRepository;
+    @Autowired private NotificationRepository notificationRepository;
+    @Autowired private GeminiService geminiService;
 
-    @Autowired
-    private LostItemRepository lostItemRepository;
-
-    @Autowired
-    private FoundItemRepository foundItemRepository;
-
-    @Autowired
-    private GeminiService geminiService;
-
-
-    // Save Match
     public Match saveMatch(Match match) {
         return matchRepository.save(match);
     }
 
-
-    // Get All Matches
     public List<Match> getAllMatches() {
-        return matchRepository.findAll();
+        return matchRepository.findAllByOrderByMatchPercentageDesc();
     }
 
-
-    // Get Match By ID
     public Match getMatchById(Long id) {
-
         return matchRepository.findById(id)
-                .orElseThrow(() ->
-                        new RuntimeException("Match not found with ID: " + id));
+                .orElseThrow(() -> new RuntimeException("Match not found: " + id));
     }
 
+    // ── Core matching algorithm ────────────────────────────────────────────────
 
-    // Calculate Match Percentage
+    /**
+     * Delegates to GeminiService for consistent semantic scoring across the app.
+     */
     public double calculateMatchPercentage(LostItem lostItem, FoundItem foundItem) {
-
-        double score = 0;
-
-
-        // Item Name Match (40%)
-        String lostName = lostItem.getItemName()
-                .trim()
-                .toLowerCase();
-
-        String foundName = foundItem.getItemName()
-                .trim()
-                .toLowerCase();
-
-
-        if (lostName.equals(foundName)) {
-            score += 40;
-        }
-
-
-        // Category Match (20%)
-        String lostCategory = lostItem.getCategory()
-                .trim()
-                .toLowerCase();
-
-        String foundCategory = foundItem.getCategory()
-                .trim()
-                .toLowerCase();
-
-
-        if (lostCategory.equals(foundCategory)) {
-            score += 20;
-        }
-
-
-        // Location Match (20%)
-        String lostLocation = lostItem.getLocation()
-                .trim()
-                .toLowerCase();
-
-        String foundLocation = foundItem.getLocation()
-                .trim()
-                .toLowerCase();
-
-
-        if (lostLocation.equals(foundLocation)) {
-            score += 20;
-        }
-
-
-        // Description Match (20%)
-        String lostDesc = lostItem.getDescription()
-                .trim()
-                .toLowerCase()
-                .replaceAll("\\s+", "");
-
-        String foundDesc = foundItem.getDescription()
-                .trim()
-                .toLowerCase()
-                .replaceAll("\\s+", "");
-
-
-        if (lostDesc.contains(foundDesc) ||
-                foundDesc.contains(lostDesc)) {
-
-            score += 20;
-        }
-
-
-        return score;
+        return geminiService.semanticScore(lostItem, foundItem);
     }
 
-
-
-    // Find Matches Automatically
-    public void findMatches() {
-
-
-        List<LostItem> lostItems =
-                lostItemRepository.findAll();
-
-
-        List<FoundItem> foundItems =
-                foundItemRepository.findAll();
-
-
+    /**
+     * Scans all open lost/found item pairs, creates Match records for pairs
+     * above the confidence threshold, and notifies item owners.
+     *
+     * @return number of NEW matches created in this run
+     */
+    public int findMatches() {
+        List<LostItem> lostItems = lostItemRepository.findAll();
+        List<FoundItem> foundItems = foundItemRepository.findAll();
+        int newMatches = 0;
 
         for (LostItem lostItem : lostItems) {
-
+            // Only match OPEN or MATCHED lost items
+            String ls = lostItem.getStatus();
+            if (!"OPEN".equals(ls) && !"MATCHED".equals(ls)) continue;
 
             for (FoundItem foundItem : foundItems) {
+                if (!"OPEN".equals(foundItem.getStatus())) continue;
 
+                double percentage = calculateMatchPercentage(lostItem, foundItem);
+                if (percentage < 40) continue;
 
-                double percentage =
-                        calculateMatchPercentage(
-                                lostItem,
-                                foundItem
-                        );
+                // Skip if this pair already has a match record
+                if (matchRepository.existsByLostItem_IdAndFoundItem_Id(
+                        lostItem.getId(), foundItem.getId())) continue;
 
+                // Build and save match
+                Match match = new Match();
+                match.setLostItem(lostItem);
+                match.setFoundItem(foundItem);
+                match.setMatchPercentage(percentage);
+                match.setStatus("PENDING");
+                match.setAiConfidenceScore(geminiService.calculateAiConfidence(lostItem, foundItem));
+                match.setMatchReason(geminiService.analyzeMatch(lostItem, foundItem));
 
-                if (percentage >= 60) {
+                matchRepository.save(match);
+                newMatches++;
 
-
-                    boolean exists =
-                            matchRepository.existsByLostItem_IdAndFoundItem_Id(
-                                    lostItem.getId(),
-                                    foundItem.getId()
-                            );
-
-
-                    if (!exists) {
-
-
-                        Match match = new Match();
-
-
-                        match.setLostItem(lostItem);
-
-                        match.setFoundItem(foundItem);
-
-                        match.setMatchPercentage(percentage);
-
-                        match.setStatus("PENDING");
-
-
-
-                        // Gemini AI Explanation
-
-                        String aiResult =
-                                geminiService.analyzeMatch(
-                                        lostItem,
-                                        foundItem
-                                );
-
-
-                        match.setMatchReason(aiResult);
-
-
-
-                        matchRepository.save(match);
-
-                    }
-
+                // ── Notifications ──────────────────────────────────────────
+                // Notify the person who reported the lost item
+                if (lostItem.getReportedBy() != null) {
+                    notify(
+                        lostItem.getReportedBy(),
+                        "MATCH",
+                        String.format("🎯 Potential match found! Your lost item \"%s\" matches a found item \"%s\" with %.0f%% confidence.",
+                            lostItem.getItemName(), foundItem.getItemName(), percentage),
+                        "/matches"
+                    );
                 }
 
+                // Notify the person who reported the found item
+                if (foundItem.getReportedBy() != null &&
+                    !foundItem.getReportedBy().equals(lostItem.getReportedBy())) {
+                    notify(
+                        foundItem.getReportedBy(),
+                        "MATCH",
+                        String.format("🎯 Your found item \"%s\" has a potential match with a lost item \"%s\" (%.0f%% confidence).",
+                            foundItem.getItemName(), lostItem.getItemName(), percentage),
+                        "/matches"
+                    );
+                }
             }
-
         }
 
+        return newMatches;
     }
 
-
-
-    // Update Match Status
     public Match updateMatchStatus(Long id, String status) {
-
-
-        Match match =
-                matchRepository.findById(id)
-                        .orElseThrow(() ->
-                                new RuntimeException("Match not found"));
-
-
+        Match match = matchRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Match not found: " + id));
         match.setStatus(status);
 
+        // If confirmed, update lost item status to MATCHED
+        if ("CONFIRMED".equals(status) && match.getLostItem() != null) {
+            LostItem li = match.getLostItem();
+            li.setStatus("MATCHED");
+            lostItemRepository.save(li);
+
+            // Notify lost-item reporter that match is confirmed
+            if (li.getReportedBy() != null) {
+                notify(li.getReportedBy(), "MATCH",
+                    String.format("✅ Your match for \"%s\" has been confirmed. Please proceed to collect the item.",
+                        li.getItemName()),
+                    "/matches");
+            }
+        }
 
         return matchRepository.save(match);
-
     }
 
+    // ── Helper ─────────────────────────────────────────────────────────────────
+
+    private void notify(com.smartrecover.smartrecover.entity.User user,
+                        String type, String message, String link) {
+        try {
+            Notification n = new Notification();
+            n.setUser(user);
+            n.setType(type);
+            n.setMessage(message);
+            n.setLink(link);
+            notificationRepository.save(n);
+        } catch (Exception ignored) {
+            // Notification failure must never break the main flow
+        }
+    }
 }

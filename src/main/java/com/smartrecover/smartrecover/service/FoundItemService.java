@@ -1,7 +1,9 @@
 package com.smartrecover.smartrecover.service;
 
 import com.smartrecover.smartrecover.entity.FoundItem;
+import com.smartrecover.smartrecover.entity.User;
 import com.smartrecover.smartrecover.repository.FoundItemRepository;
+import com.smartrecover.smartrecover.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -10,58 +12,71 @@ import java.util.List;
 @Service
 public class FoundItemService {
 
-    @Autowired
-    private FoundItemRepository foundItemRepository;
+    @Autowired private FoundItemRepository foundItemRepository;
+    @Autowired private UserRepository userRepository;
 
-    // Save Found Item
-    public FoundItem saveFoundItem(FoundItem foundItem) {
-
-        if (foundItem.getStatus() == null || foundItem.getStatus().isBlank()) {
-            foundItem.setStatus("AVAILABLE");
+    public FoundItem saveFoundItem(FoundItem foundItem, String userEmail) {
+        if (userEmail != null) {
+            userRepository.findByEmail(userEmail)
+                    .ifPresent(foundItem::setReportedBy);
         }
-
+        if (foundItem.getStatus() == null) foundItem.setStatus("OPEN");
         return foundItemRepository.save(foundItem);
     }
 
-    // Get All Found Items
     public List<FoundItem> getAllFoundItems() {
-        return foundItemRepository.findAll();
+        return foundItemRepository.findAllByOrderByCreatedAtDesc();
     }
 
-    // Get Found Item by ID
+    public List<FoundItem> getFoundItemsByUser(Long userId) {
+        return foundItemRepository.findByReportedByIdOrderByCreatedAtDesc(userId);
+    }
+
+    /** Visible to any authenticated user (items are public for campus browsing). */
     public FoundItem getFoundItemById(Long id) {
         return foundItemRepository.findById(id)
-                .orElseThrow(() ->
-                        new RuntimeException("Found Item not found with ID: " + id));
+                .orElseThrow(() -> new RuntimeException("Found item not found: " + id));
     }
 
-    // Update Found Item
-    public FoundItem updateFoundItem(Long id, FoundItem updatedFoundItem) {
+    /**
+     * Update a found item. Only the owner or an ADMIN may modify it.
+     */
+    public FoundItem updateFoundItem(Long id, FoundItem updatedItem, String userEmail) {
+        FoundItem existing = foundItemRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Found item not found: " + id));
 
-        FoundItem existingItem = foundItemRepository.findById(id)
-                .orElseThrow(() ->
-                        new RuntimeException("Found Item not found with ID: " + id));
+        requireOwnerOrAdmin(existing.getReportedBy(), userEmail, "edit");
 
-        existingItem.setItemName(updatedFoundItem.getItemName());
-        existingItem.setDescription(updatedFoundItem.getDescription());
-        existingItem.setCategory(updatedFoundItem.getCategory());
-        existingItem.setLocation(updatedFoundItem.getLocation());
-        existingItem.setFoundDate(updatedFoundItem.getFoundDate());
-        existingItem.setStatus(updatedFoundItem.getStatus());
+        if (updatedItem.getItemName()    != null) existing.setItemName(updatedItem.getItemName());
+        if (updatedItem.getDescription() != null) existing.setDescription(updatedItem.getDescription());
+        if (updatedItem.getLocation()    != null) existing.setLocation(updatedItem.getLocation());
+        if (updatedItem.getCategory()    != null) existing.setCategory(updatedItem.getCategory());
+        if (updatedItem.getColor()       != null) existing.setColor(updatedItem.getColor());
+        if (updatedItem.getFoundDate()   != null) existing.setFoundDate(updatedItem.getFoundDate());
+        if (updatedItem.getStatus()      != null) existing.setStatus(updatedItem.getStatus());
+        if (updatedItem.getImageUrl()    != null) existing.setImageUrl(updatedItem.getImageUrl());
 
-        // Save Image URL
-        existingItem.setImageUrl(updatedFoundItem.getImageUrl());
-
-        return foundItemRepository.save(existingItem);
+        return foundItemRepository.save(existing);
     }
 
-    // Delete Found Item
-    public void deleteFoundItem(Long id) {
+    /**
+     * Delete a found item. Only the owner or an ADMIN may delete it.
+     */
+    public void deleteFoundItem(Long id, String userEmail) {
+        FoundItem existing = foundItemRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Found item not found: " + id));
 
-        FoundItem foundItem = foundItemRepository.findById(id)
-                .orElseThrow(() ->
-                        new RuntimeException("Found Item not found with ID: " + id));
+        requireOwnerOrAdmin(existing.getReportedBy(), userEmail, "delete");
+        foundItemRepository.deleteById(id);
+    }
 
-        foundItemRepository.delete(foundItem);
+    // ── Helper ─────────────────────────────────────────────────────────────────
+
+    private void requireOwnerOrAdmin(User owner, String userEmail, String action) {
+        User actor = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        if ("ADMIN".equals(actor.getRole())) return;
+        if (owner != null && owner.getId().equals(actor.getId())) return;
+        throw new RuntimeException("Access denied: you can only " + action + " your own items");
     }
 }

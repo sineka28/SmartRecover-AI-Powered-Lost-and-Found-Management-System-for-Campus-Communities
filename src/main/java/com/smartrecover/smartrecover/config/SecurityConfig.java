@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -14,56 +15,52 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
+@EnableMethodSecurity   // activates @PreAuthorize / @RolesAllowed on controllers
 public class SecurityConfig {
 
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
-
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-
         http
                 .cors(cors -> {})
                 .csrf(csrf -> csrf.disable())
-
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-
                 .authorizeHttpRequests(auth -> auth
-
-                        .requestMatchers("/users/**").permitAll()
-
-                        .requestMatchers("/api/files/**").authenticated()
-
+                        // ── Public ────────────────────────────────────────
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/public/**").permitAll()
+                        // Static / SPA assets
+                        .requestMatchers("/", "/index.html", "/static/**", "/assets/**",
+                                "/*.js", "/*.css", "/*.ico", "/*.png", "/*.svg").permitAll()
+                        // Uploaded files
+                        .requestMatchers("/uploads/**").permitAll()
+                        // ── Admin-only URL patterns ───────────────────────
+                        // Fine-grained method-level checks use @PreAuthorize;
+                        // these URL patterns are a belt-and-suspenders guard.
+                        .requestMatchers("/api/users").hasRole("ADMIN")
+                        .requestMatchers("/api/users/{id}").hasRole("ADMIN")
+                        .requestMatchers("/api/claims/{id}/status").hasRole("ADMIN")
+                        // ── All other API requests need auth ──────────────
                         .anyRequest().authenticated()
                 )
-
-                .addFilterBefore(
-                        jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class
-                );
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-
     @Bean
     public PasswordEncoder passwordEncoder() {
-
         return new BCryptPasswordEncoder();
-
     }
-
 
     @Bean
     public AuthenticationManager authenticationManager(
             AuthenticationConfiguration configuration
     ) throws Exception {
-
         return configuration.getAuthenticationManager();
-
     }
-
 }

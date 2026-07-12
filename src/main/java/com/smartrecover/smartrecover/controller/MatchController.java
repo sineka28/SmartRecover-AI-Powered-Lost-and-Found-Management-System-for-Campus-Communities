@@ -1,51 +1,60 @@
 package com.smartrecover.smartrecover.controller;
 
+import com.smartrecover.smartrecover.dto.ApiResponse;
 import com.smartrecover.smartrecover.entity.Match;
 import com.smartrecover.smartrecover.service.MatchService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
-@RequestMapping("/matches")
+@RequestMapping("/api/matches")
 public class MatchController {
 
     @Autowired
     private MatchService matchService;
 
-    // Save Match
-    @PostMapping
-    public Match saveMatch(@RequestBody Match match) {
-        return matchService.saveMatch(match);
-    }
-
-    // Get All Matches
     @GetMapping
-    public List<Match> getAllMatches() {
-        return matchService.getAllMatches();
+    public ResponseEntity<?> getAllMatches() {
+        try {
+            List<Match> matches = matchService.getAllMatches();
+            return ResponseEntity.ok(matches);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
 
-    // Get Match by ID
     @GetMapping("/{id}")
-    public Match getMatchById(@PathVariable Long id) {
-        return matchService.getMatchById(id);
+    public ResponseEntity<?> getMatchById(@PathVariable Long id) {
+        try {
+            Match match = matchService.getMatchById(id);
+            return ResponseEntity.ok(match);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
 
-    // Automatically Find Matches
     @PostMapping("/find")
-    public String findMatches() {
-
-        matchService.findMatches();
-
-        return "Matching completed successfully!";
+    public ResponseEntity<?> findMatches() {
+        try {
+            int count = matchService.findMatches();
+            return ResponseEntity.ok(ApiResponse.success("Found " + count + " new matches", count));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
-    // Update Match Status
-    @PutMapping("/{id}/status")
-    public Match updateMatchStatus(
-            @PathVariable Long id,
-            @RequestParam String status) {
 
-        return matchService.updateMatchStatus(id, status);
+    @PutMapping("/{id}/status")
+    public ResponseEntity<?> updateMatchStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        try {
+            String status = body.get("status");
+            Match match = matchService.updateMatchStatus(id, status);
+            return ResponseEntity.ok(match);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
 }

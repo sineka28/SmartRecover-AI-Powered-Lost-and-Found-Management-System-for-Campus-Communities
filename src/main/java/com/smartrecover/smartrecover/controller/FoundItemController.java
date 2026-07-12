@@ -1,48 +1,91 @@
 package com.smartrecover.smartrecover.controller;
 
+import com.smartrecover.smartrecover.dto.ApiResponse;
 import com.smartrecover.smartrecover.entity.FoundItem;
+import com.smartrecover.smartrecover.entity.User;
 import com.smartrecover.smartrecover.service.FoundItemService;
+import com.smartrecover.smartrecover.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/found-items")
+@RequestMapping("/api/found-items")
 public class FoundItemController {
 
     @Autowired
     private FoundItemService foundItemService;
 
-    // Add Found Item
+    @Autowired
+    private UserService userService;
+
     @PostMapping
-    public FoundItem addFoundItem(@RequestBody FoundItem foundItem) {
-        return foundItemService.saveFoundItem(foundItem);
+    public ResponseEntity<?> addFoundItem(@RequestBody FoundItem foundItem,
+                                           Authentication authentication) {
+        try {
+            String email = authentication.getName();
+            FoundItem saved = foundItemService.saveFoundItem(foundItem, email);
+            return ResponseEntity.ok(saved);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
 
-    // Get All Found Items
     @GetMapping
-    public List<FoundItem> getAllFoundItems() {
-        return foundItemService.getAllFoundItems();
+    public ResponseEntity<?> getAllFoundItems() {
+        try {
+            List<FoundItem> items = foundItemService.getAllFoundItems();
+            return ResponseEntity.ok(items);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
-    // Get Found Item by ID
+
+    /** Returns only the items reported by the currently authenticated user. */
+    @GetMapping("/my")
+    public ResponseEntity<?> getMyFoundItems(Authentication authentication) {
+        try {
+            User currentUser = userService.getUserByEmail(authentication.getName());
+            List<FoundItem> items = foundItemService.getFoundItemsByUser(currentUser.getId());
+            return ResponseEntity.ok(items);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
     @GetMapping("/{id}")
-    public FoundItem getFoundItemById(@PathVariable Long id) {
-        return foundItemService.getFoundItemById(id);
+    public ResponseEntity<?> getFoundItemById(@PathVariable Long id) {
+        try {
+            FoundItem item = foundItemService.getFoundItemById(id);
+            return ResponseEntity.ok(item);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
-    // Update Found Item
+
     @PutMapping("/{id}")
-    public FoundItem updateFoundItem(@PathVariable Long id,
-                                     @RequestBody FoundItem foundItem) {
-
-        return foundItemService.updateFoundItem(id, foundItem);
+    public ResponseEntity<?> updateFoundItem(@PathVariable Long id,
+                                              @RequestBody FoundItem foundItem,
+                                              Authentication authentication) {
+        try {
+            String email = authentication.getName();
+            FoundItem updated = foundItemService.updateFoundItem(id, foundItem, email);
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
-    // Delete Found Item
+
     @DeleteMapping("/{id}")
-    public String deleteFoundItem(@PathVariable Long id) {
-
-        foundItemService.deleteFoundItem(id);
-
-        return "Found Item deleted successfully!";
+    public ResponseEntity<?> deleteFoundItem(@PathVariable Long id, Authentication authentication) {
+        try {
+            foundItemService.deleteFoundItem(id, authentication.getName());
+            return ResponseEntity.ok(ApiResponse.success("Found item deleted", null));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
 }

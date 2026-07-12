@@ -1,31 +1,29 @@
 package com.smartrecover.smartrecover.dto;
 
 public class LoginResponse {
-
     private String token;
-    private String message;
+    private Long userId;
+    private String name;
+    private String email;
+    private String role;
+    private String regNo;
+    private String profileImageUrl;
 
-    public LoginResponse() {
-    }
-
-    public LoginResponse(String token, String message) {
+    public LoginResponse(String token, Long userId, String name, String email, String role, String regNo, String profileImageUrl) {
         this.token = token;
-        this.message = message;
+        this.userId = userId;
+        this.name = name;
+        this.email = email;
+        this.role = role;
+        this.regNo = regNo;
+        this.profileImageUrl = profileImageUrl;
     }
 
-    public String getToken() {
-        return token;
-    }
-
-    public void setToken(String token) {
-        this.token = token;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
-    }
+    public String getToken() { return token; }
+    public Long getUserId() { return userId; }
+    public String getName() { return name; }
+    public String getEmail() { return email; }
+    public String getRole() { return role; }
+    public String getRegNo() { return regNo; }
+    public String getProfileImageUrl() { return profileImageUrl; }
 }
