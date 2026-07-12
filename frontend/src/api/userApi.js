@@ -1,11 +1,21 @@
 import api from "../services/api";
 
-// Register User
 export const registerUser = async (user) => {
-  return await api.post("/users", user);
+  return await api.post("/auth/register", user);
 };
 
-// Login User
 export const loginUser = async (loginData) => {
-  return await api.post("/users/login", loginData);
+  return await api.post("/auth/login", loginData);
+};
+
+export const getCurrentUser = async () => {
+  return await api.get("/users/me");
+};
+
+export const updateCurrentUser = async (data) => {
+  return await api.put("/users/me", data);
+};
+
+export const getAllUsers = async () => {
+  return await api.get("/users");
 };
