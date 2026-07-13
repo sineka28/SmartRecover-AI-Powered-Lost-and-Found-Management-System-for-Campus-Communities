@@ -1,0 +1,66 @@
+Fix the deployment completely.
+
+Current issue:
+The published URL opens only a blank white page (sometimes it previously showed ambiguous "/" mapping errors). The React app does not render after publishing.
+
+Requirements:
+
+1. Diagnose the root cause instead of applying temporary fixes.
+
+2. Verify Spring Boot serves the React production build correctly.
+   - There must be only ONE controller handling "/".
+   - Remove duplicate "/" mappings.
+   - Ensure React routes forward correctly.
+   - Do not break any REST APIs under /api/**.
+
+3. Verify the frontend production build.
+   - Build completes successfully.
+   - index.html is generated.
+   - Static JS/CSS files are correctly referenced.
+   - No JavaScript runtime errors.
+   - No blank white page.
+
+4. Verify React Router.
+   - BrowserRouter/Basename configuration is correct for production.
+   - Unknown routes forward to index.html.
+
+5. Check browser console for runtime errors.
+   - Fix any import errors.
+   - Fix any component crashes.
+   - Fix any undefined variables.
+   - Fix any failed API initialization that prevents rendering.
+
+6. Check network requests.
+   - Ensure frontend loads all JS/CSS assets successfully.
+   - No 404 for static files.
+   - No MIME type errors.
+
+7. Verify deployment configuration.
+   - Correct start command.
+   - Correct working directory.
+   - Correct port binding.
+   - Correct production workflow.
+   - React frontend is served from the published URL.
+
+8. Keep ALL existing functionality.
+   - Do NOT remove any AI agents.
+   - Do NOT remove authentication.
+   - Do NOT remove dashboard.
+   - Do NOT remove database.
+   - Do NOT redesign the application.
+   - Do NOT change backend business logic.
+
+9. After fixing:
+   - Restart backend.
+   - Restart frontend.
+   - Perform a production build.
+   - Test the published URL.
+   - Verify the landing page loads correctly.
+   - Verify Login.
+   - Verify Register.
+   - Verify Dashboard.
+   - Verify API communication.
+
+10. Only finish when the published URL displays the complete SmartRecover AI application instead of a white page.
+
+Do not stop after making changes. Verify that the published URL works before marking the task complete.
