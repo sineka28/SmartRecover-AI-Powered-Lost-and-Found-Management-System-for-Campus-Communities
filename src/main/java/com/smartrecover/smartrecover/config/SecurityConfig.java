@@ -30,22 +30,20 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        // ── Public ────────────────────────────────────────
+                        // ── Public API ────────────────────────────────────
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
-                        // Static / SPA assets
-                        .requestMatchers("/", "/index.html", "/static/**", "/assets/**",
-                                "/*.js", "/*.css", "/*.ico", "/*.png", "/*.svg").permitAll()
                         // Uploaded files
                         .requestMatchers("/uploads/**").permitAll()
                         // ── Admin-only URL patterns ───────────────────────
-                        // Fine-grained method-level checks use @PreAuthorize;
-                        // these URL patterns are a belt-and-suspenders guard.
                         .requestMatchers("/api/users").hasRole("ADMIN")
                         .requestMatchers("/api/users/{id}").hasRole("ADMIN")
                         .requestMatchers("/api/claims/{id}/status").hasRole("ADMIN")
-                        // ── All other API requests need auth ──────────────
-                        .anyRequest().authenticated()
+                        // ── All other /api/** requires authentication ──────
+                        .requestMatchers("/api/**").authenticated()
+                        // ── Everything else is the React SPA (public) ─────
+                        // Authentication is enforced client-side by react-router.
+                        .anyRequest().permitAll()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

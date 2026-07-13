@@ -56,3 +56,8 @@ externalPort = 5000
 [[ports]]
 localPort = 8080
 externalPort = 80
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["bash", "-c", "cd /home/runner/workspace && java -jar target/smartrecover-0.0.1-SNAPSHOT.jar"]
+build = ["bash", "-c", "cd /home/runner/workspace/frontend && npm install --silent && npm run build && mkdir -p /home/runner/workspace/src/main/resources/static && cp -r build/. /home/runner/workspace/src/main/resources/static/ && cd /home/runner/workspace && ./mvnw package -DskipTests -q"]
